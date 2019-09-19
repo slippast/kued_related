@@ -1,0 +1,8 @@
+name = KUED Related
+description = Displays Episodes related to a Series
+package = KUED Modules
+version = VERSION
+core = 7.x
+
+files[] = kued_related.module
+files[] = kued_related.install

@@ -1,0 +1,567 @@
+<?php
+
+/**
+ * Implements hook_block_info()
+ */
+function kued_related_block_info() {
+  $blocks['kued_related_episode_future'] = array(
+    'info' => t('KUED Related Episodes Block - Future'),
+  );
+  $blocks['kued_related_episode_past'] = array(
+    'info' => t('KUED Related Episodes Block - Past'),
+  );
+  $blocks['kued_related_episode_all'] = array(
+    'info' => t('KUED Related Episodes Block - All'),
+  );
+  $blocks['kued_filler'] = array(
+    'info' => t('KUED filler block'),
+  );
+  $blocks['kued_related_airdates'] = array(
+    'info' => t('Episode Airdates'),
+	'cache' => DRUPAL_NO_CACHE,
+  );
+
+  return $blocks;
+}
+
+/**
+ * Implements hook_theme().
+ */
+function kued_related_theme() {
+  $module_path = drupal_get_path('module', 'kued_related');
+  $base = array(
+    'path' => $module_path . "/theme",   
+  );
+  $items = array(
+    'kued_related_airdates_theme' => $base + array(
+    	'template' => 'kued-related-airdates--block',
+    	'variables' => array('items' => NULL,),
+    ),
+	/*
+	'kued_related_nodes'  => array(
+		'render element' => 'element',
+    	'template' => 'kued_related_nodes',
+    ),
+	*/
+  ); 
+return $items;
+}
+
+
+/**
+ * Implements hook_block_view().
+ *
+ * This hook generates the contents of the blocks themselves.
+ */
+function kued_related_block_view($delta = '') {
+  //The $delta parameter tells us which block is being requested.
+	$block = array();
+  switch ($delta) {
+    case 'kued_related_episode_future':
+      $block['subject'] = t('KUED Related Episodes Block - future');
+      $block['content'] = kued_related_episode_contents('future');
+      break;
+
+    case 'kued_related_episode_past':
+      $block['subject'] = t('KUED Related Episodes Block - Past');
+      $block['content'] = kued_related_episode_contents('past');
+      break;
+
+    case 'kued_related_episode_all':
+      $block['subject'] = t('KUED Related Episodes Block - All');
+      $block['content'] = kued_related_episode_contents('all');
+      break;
+    case 'kued_related_airdates':
+      $block['subject'] = t('Episode Airdates');
+      $block['content'] = kued_related_airdates('airdates');
+      break;
+    case 'kued_filler':
+      $block['subject'] = t('KUED Filler Block');
+      //$block['content'] = kued_related_episode_contents($delta);
+      break;
+  }
+  return $block;
+}
+
+/**
+ * A module-defined block content function.
+ */
+function kued_related_episode_contents($delta) {
+  switch ($delta) {
+    case 'future':
+      return kued_related_block_content($delta);
+    case 'past':
+      return kued_related_block_content($delta);
+    case 'all':
+      return kued_related_block_content($delta);
+    case 'kued_filler':
+      return;
+  }
+}
+
+/**
+ * A module-defined block related content function.
+ */
+function kued_related_airdates($delta = '') {
+  if (path_is_admin(current_path())) {
+    // Get the series NID from the hidden Drupal path.
+    $path = isset($_GET['q']) ? $_GET['q'] : '<front>';
+    $path = explode('/', $path);
+    $episode_nid = $path[1];
+  } else {
+    // Get the series NID from the hidden Drupal path.
+    $path = isset($_GET['q']) ? $_GET['q'] : '<front>';
+    $path = explode('/', $path);
+    $episode_nid = $path[1];
+  }
+
+  if(is_numeric($episode_nid)) {
+    // Current time formatted for searching
+	  $node = node_load($episode_nid);
+
+    // Get current time stamp for query
+    $time = date('Y-m-d H:i:s', REQUEST_TIME);
+
+		// Episode type specific preprocessing code.
+		//$program_id = $vars['node']->field_episode_airdates;
+		$program_id = $node->field_program_id;
+		if(isset($program_id['und']['0']['value'])) {
+			$program_id = $program_id['und']['0']['value'];
+			$channels = array('KUED-HD', 'WORLD', 'KIDS CH');
+			$i=0;
+
+			// Now cycle through the results
+			foreach($channels as $channel) {
+			  switch($channel) {
+          case 'KUED-HD':
+            $channel_title = 'KUED';
+            $class = 'kued';
+          break;
+          case 'WORLD':
+            $channel_title = 'The World';
+            $class = 'world';
+          break;
+          case 'KIDS CH':
+            $channel_title = 'Kids 24/7';
+            $class = 'kids-247';
+          break;
+			  }
+        
+				$result = db_query("SELECT fulldate AS airdate FROM protrack_airlist WHERE channel = :channels AND program_id = :pid AND fulldate > :now ORDER BY channel, fulldate", array(':now' => $time,':channels' => $channel, ':pid' => $program_id))->fetchAllKeyed(0,0);
+				foreach($result as $date) {
+          if($result) {
+            $content['airdates'][$channel_title]['class'] = $class;
+            $date = strtotime($date);
+            $content['airdates'][$channel_title][] = format_date($date, 'long');
+          }
+        }
+      }
+    }
+
+    // Reminder Linking
+    $reminder = 'Reminder';
+    $reminder_long = 'Schedule a reminder';
+    $reminder_link = '/reminder/' . $node->nid . '/' . $program_id;
+    // Javascript popup link:
+    $popup_link = 'onclick=\'window.open("' . $reminder_link . '","pagename","menubar=no,toolbar=no,width=500,height=650,scrollbars=yes,location=0,top=20,left=20");\'';
+    $popup_name = 'name=\'' . $node->nid . '-' . $program_id . '\'';
+    $reminder_link = 'javascript:void(0)';
+    $reminder_link_future = '<a ' . $popup_name . ' ' . $popup_link . ' href=\'' . $reminder_link . '\' title="' . $reminder . ' for ' . $node->title .'" class="reminder reminder-link reminder-link-future">' . $reminder_long . ' <span>for ' . $node->title .'</span></a>';
+
+    if(!empty($content)) {
+      $items = array(
+        '#items' => $content,
+        '#reminder' => $reminder_link_future,
+       );
+      return theme('kued_related_airdates_theme', array('content' => $items,));
+    }
+  }
+}
+
+
+/**
+ * A module-defined block related content function.
+ */
+function kued_related_block_content($delta = '') {
+	// Build some generic arrays
+	$nodes = array();
+	$exclude = array();
+	$items = array();
+
+  if (path_is_admin(current_path())) {
+    // Get the series NID from the hidden Drupal path.
+    $path = isset($_GET['q']) ? $_GET['q'] : '<front>';
+    $path = explode('/', $path);
+    $series_nid = $path[1];
+  } else {
+    // Get the series NID from the hidden Drupal path.
+    $path = isset($_GET['q']) ? $_GET['q'] : '<front>';
+    $path = explode('/', $path);
+    $series_nid = $path[1];
+  }
+
+  if(is_numeric($series_nid)) {
+    // Current time formatted for searching
+    $now_formatted = date('Y-m-d H:i:s', REQUEST_TIME);
+    $future_formatted = date('Y-m-d H:i:s', REQUEST_TIME + 2592000);
+    $query = "SELECT DISTINCT ON (field_data_field_program_id, fulldate, channel) field_episode_cross_link_target_id AS nid, fulldate, channel
+      FROM field_data_field_episode_cross_link
+      LEFT JOIN field_data_field_program_id
+      ON (field_data_field_episode_cross_link.field_episode_cross_link_target_id = field_data_field_program_id.entity_id)
+      RIGHT JOIN protrack_airlist
+      ON (field_data_field_program_id.field_program_id_value = protrack_airlist.program_id)
+      WHERE (field_data_field_episode_cross_link.entity_id = :nid)
+      AND fulldate > :start
+      AND fulldate < :end
+      ORDER BY fulldate, channel";
+    // Find Future Shows
+    $query_array = array(':nid' => $series_nid, ':start' => $now_formatted, ':end' => $future_formatted);
+    // Execute the query and build the search loop
+    $result = db_query($query, $query_array)->fetchAllKeyed(0,0);
+    foreach ($result as $nid) {
+      $exclude[] = $nid;
+    }
+
+    if($delta == 'future'){
+      $items['#prefix'] = '<div id="related-episodes" class="related-episodes related-episodes-future">';
+      $items['#suffix'] = '</div>';
+  
+      $future_formatted = date('Y-m-d H:i:s', REQUEST_TIME + 2592000);
+      $query = "SELECT DISTINCT ON (field_data_field_program_id, fulldate, channel) field_episode_cross_link_target_id AS nid, fulldate, channel
+        FROM field_data_field_episode_cross_link
+        LEFT JOIN field_data_field_program_id
+        ON (field_data_field_episode_cross_link.field_episode_cross_link_target_id = field_data_field_program_id.entity_id)
+        RIGHT JOIN protrack_airlist
+        ON (field_data_field_program_id.field_program_id_value = protrack_airlist.program_id)
+        WHERE (field_data_field_episode_cross_link.entity_id = :nid)
+        AND fulldate > :start
+        AND fulldate < :end
+        ORDER BY fulldate, channel";
+    
+      // Find Future Shows
+      $query_array = array(':nid' => $series_nid, ':start' => $now_formatted, ':end' => $future_formatted);
+      // Execute the query and build the search loop
+      $result = db_query($query, $query_array)->fetchAllKeyed(0,0);
+    
+      foreach ($result as $nid) {
+        $exclude[] = $nid;
+        // Open the node
+        $node = node_load($nid, $vid = NULL, $reset = TRUE);
+        $items[] = node_view($node, 'kued_related_episodes'); // This is where we show the custom content view for program guide items
+      }
+  
+      // Now build the list of nodes
+      if(isset($items)) {
+        return $items;
+      }
+    } elseif($delta == 'past') {
+      $items['#prefix'] = '<div id="related-episodes" class="related-episodes related-episodes-past">';
+      $items['#suffix'] = '</div>';
+      // Find Past Shows
+      $past_formatted = date('Y-m-d H:i:s', REQUEST_TIME - 2592000);
+      $query = "SELECT DISTINCT ON (field_data_field_program_id, fulldate, channel) field_episode_cross_link_target_id AS nid, fulldate, channel
+        FROM field_data_field_episode_cross_link
+        LEFT JOIN field_data_field_program_id
+        ON (field_data_field_episode_cross_link.field_episode_cross_link_target_id = field_data_field_program_id.entity_id)
+        RIGHT JOIN protrack_airlist
+        ON (field_data_field_program_id.field_program_id_value = protrack_airlist.program_id)
+        WHERE (field_data_field_episode_cross_link.entity_id = :nid)
+        AND fulldate < :start
+        AND fulldate > :end
+        ORDER BY fulldate, channel";
+      $query_array = array(':nid' => $series_nid, ':start' => $now_formatted, ':end' => $past_formatted);
+      // Execute the query and build the search loop
+      $result = db_query($query, $query_array)->fetchAllKeyed(0,0);
+    
+      //$items['#tag'] = '<div>hi there.</div>';
+      //dpm($exclude);
+      foreach ($result as $nid) {
+        $found = in_array($nid, $exclude);
+        if($found != TRUE){
+          // load the node
+          $node = node_load($nid, $vid = NULL, $reset = TRUE);
+          $items[] = node_view($node, 'kued_related_episodes'); // This is where we show the custom content view for program guide items
+        }
+      }
+      // Now build the list of nodes
+      if(isset($items)) {
+        return $items;
+      }
+    } elseif($delta == 'all') {
+      $items['#prefix'] = '<div id="related-episodes" class="related-episodes related-episodes-all">';
+      $items['#suffix'] = '</div>';
+      // Find All Shows
+      $query = "SELECT DISTINCT ON (field_data_field_program_id, fulldate, channel) field_episode_cross_link_target_id AS nid, fulldate, channel
+        FROM field_data_field_episode_cross_link
+        LEFT JOIN field_data_field_program_id
+        ON (field_data_field_episode_cross_link.field_episode_cross_link_target_id = field_data_field_program_id.entity_id)
+        RIGHT JOIN protrack_airlist
+        ON (field_data_field_program_id.field_program_id_value = protrack_airlist.program_id)
+        WHERE (field_data_field_episode_cross_link.entity_id = :nid)
+        AND fulldate > :start
+        AND fulldate < :end
+        ORDER BY fulldate, channel";
+      // Find Future Shows
+      $query_array = array(':nid' => $series_nid, ':start' => $now_formatted, ':end' => $future_formatted);
+      // Execute the query and build the search loop
+      $result = db_query($query, $query_array)->fetchAllKeyed(0,0);
+      foreach ($result as $nid) {
+        // load the node
+        $node = node_load($nid, $vid = NULL, $reset = TRUE);
+        /*
+        $found = in_array($nid, $exclude);
+        if($found != TRUE) {
+          $node->future = 1;
+        } else {
+          $node->future = 0;
+        }
+        */
+        if($node->status == 1) {
+          $items[] = node_view($node, 'kued_related_episodes'); // This is where we show the custom content view for program guide items
+        }
+      }
+      //dpm($items);
+      // Now build the list of nodes
+      if(isset($items)) {
+        return $items;
+      }
+    }
+	}
+}
+
+/**
+ * Impliments hook_preprocess_node
+ */
+function kued_related_preprocess_node(&$vars) {
+  if($vars['elements']['#view_mode'] == 'full' || $vars['elements']['#view_mode'] == 'kued_related_episodes') {
+    
+  $vars['view'] = $vars['elements']['#view_mode'];
+    if(isset($vars['field_episode_guide'][0]['value'])) {
+      $vars['read_more'] = '<a href="' . $vars['node_url'] . '" title="' . $vars['title'] . ' - Read More">Read More &raquo;</a>';
+    } else {
+      $vars['read_more'] = '';
+    }
+  
+    if(isset($vars['field_episode_hdtv'][0]['value'])) {
+      $vars['hdtv'] = $vars['field_episode_hdtv'][0]['value'];
+    } else {
+      $vars['hdtv'] = '';
+    }
+  
+    if(isset($vars['closed_caption'])) {
+      $vars['closed_caption'] = '<img src="/' . $vars['directory'] . '/images/kued-icon-closed-caption.gif" alt="KUED Closed Caption Icon" />';
+    } else {
+      $vars['closed_caption'] = '';
+    }
+  
+    if(!empty($vars['field_episode_stereo'])) {
+      $terms = $vars['field_episode_stereo'];
+      $i=0;
+      foreach($terms as $value) {
+        if(is_object(isset($value['taxonomy_term']))) {
+          $vars['stereo_format'] = $value['taxonomy_term']->name;
+          $i++;
+        }
+      }
+      if(isset($vars['stereo_format'])) {
+        if($vars['stereo_format'] == 'Mono') {
+          $vars['stereo_format'] = '<img src="/' . $vars['directory'] . '/images/kued-icon-mono.gif" alt="KUED Mono Icon" />';
+        } elseif($vars['stereo_format'] == 'Stereo') {
+          $vars['stereo_format'] = '<img src="/' . $vars['directory'] . '/images/kued-icon-stereo.gif" alt="KUED Stereo Icon" />';
+        } elseif($vars['stereo_format'] == 'Stereo Surround 5.1') {
+          $vars['stereo_format'] = '<img src="/' . $vars['directory'] . '/images/kued-icon-surround.gif" alt="KUED 5.1 Surround Sound Icon" />';
+        } else {
+          $vars['stereo_format'] = '';
+        }
+      } else {
+        $vars['stereo_format'] = '';
+      }
+    }
+	}
+}
+
+
+function kued_related_seconds_converstion($time){
+  if(is_numeric($time)){
+    $value = array(
+      "years" => 0, "days" => 0, "hours" => 0,
+      "minutes" => 0, "seconds" => 0,
+    );
+    if($time >= 31556926){
+      $value["years"] = floor($time/31556926);
+      $time = ($time%31556926);
+    }
+    if($time >= 86400){
+      $value["days"] = floor($time/86400);
+      $time = ($time%86400);
+    }
+    if($time >= 3600){
+      $value["hours"] = floor($time/3600);
+      $time = ($time%3600);
+    }
+    if($time >= 60){
+      $value["minutes"] = floor($time/60);
+      $time = ($time%60);
+    }
+    $value["seconds"] = floor($time);
+    return (array) $value;
+  }else{
+    return (bool) FALSE;
+  }
+}
+
+
+/**
+ * Function to select and display the Program Guide Content
+ */
+/*
+function kued_related_display() {
+
+			//drupal_set_message(t('programs start time: %v', array('%v' => $start_time)));
+			//drupal_set_message(t('programs end time: %v', array('%v' => $end_time)));
+
+
+	$items = array();
+	$items['#prefix'] = '<div id="whatson-guide-shows-' . $station . '" class="whatson-guide-shows-' . $station . '">';
+	$items['#suffix'] = '</div>';
+	//$items['#theme'] = 'kued_program_guide_nodes';
+
+	// This is the big query to select all the items we'll show here.
+	$query = "SELECT DISTINCT unix_timestamp(a.fulldate) AS show_start, '' AS show_end, '' AS item_number, '' AS length, unix_timestamp(a.fulldate) AS fulldate, a.series_id, a.program_id, a.version_id, a.rebroadcast, a.channel, s.entity_id AS series_nid, p.entity_id AS program_nid
+		FROM {protrack_airlist} AS a
+		LEFT JOIN field_data_field_series_id AS s ON a.series_id = s.field_series_id_value
+		LEFT JOIN field_data_field_version_id AS p ON a.version_id = p.field_version_id_value
+		WHERE (unix_timestamp(fulldate) BETWEEN :start_time AND :end_time) AND channel = :station ORDER BY fulldate ASC";
+	// Limiting items that we're looking for.
+	$query_array = array(':start_time' => $start_time_extra, ':end_time' => $end_time_extra, ':station' => $station_search);
+
+
+	// This strange collection of stuff is where I find the start and stop time for the nodes to display.  This way I'll hve more control over final display.
+	$z = 0;
+	$x = 1;
+	$y = 0;
+	
+	// Execute the query and build the search loop
+	$result = db_query($query, $query_array);
+	while($row = $result->fetchAssoc()) {
+		// Get the length to filter results
+		$query = "SELECT field_episode_length_value FROM {field_data_field_episode_length} WHERE entity_id = :nid";
+		$query_array = array(':nid' => $row['program_nid']);
+
+		// The start / end time / length for the selected airlist entry
+		$length = db_query($query, $query_array)->fetchField();
+		$length = kued_program_guide_length_seconds($length);
+		$show_start = $row['fulldate'];
+		$show_end = $show_start + $length;
+
+		// Filter the results // only open the nodes in our desired time-frame
+		if($show_end > $start_time && $show_start < $end_time) {
+		$collection[$z] = $row;
+		$collection[$z]['length'] = $length;
+		$z++;
+		}
+	}
+
+	// Set the end time as the next show's start time
+	while($x < $z) {
+		$collection_offset[$x-1]['show_end'] = $collection[$x]['show_start'];
+		$x++;
+	}
+	$collection_offset[$x-1]['show_end'] = $end_time; // Set the end time of the last item as the end time of the time-span (end_time)
+
+	// Merge the array data so we get one nice clean array from which to load our nodes
+	foreach($collection as $key) {
+		$collection[$y]['show_end'] = $collection_offset[$y]['show_end'];
+		$collection[$y]['item_number'] = $y;
+		$y++;
+	}
+	//drupal_set_message('<pre>'.print_r($collection, TRUE).'</pre>');
+	// Now I'l use the Collection variable to open my nodes and prepare them for prerender.
+
+	// Now open the node and build the item list!
+	foreach($collection as $key) {
+		// Get the record from the Airlist
+		$airlist_query = "SELECT * FROM {protrack_airlist} WHERE unix_timestamp(fulldate) = :fulldate AND program_id = :program_id";
+		$airlist_query_array = array(':program_id' => $key['program_id'],':fulldate' => $key['show_start']);
+		//Check to see if this series_id already exists, get the entity_id
+		$airlist_result = db_query($airlist_query, $airlist_query_array);
+		$airlist_record = $airlist_result->fetchAssoc();
+
+		// Open the node
+		$node = node_load($nid = $key['program_nid'], $vid = NULL, $reset = TRUE);
+			// Add key items to the node object for preprocessing
+			$node->rebroadcast = $airlist_record['rebroadcast'];
+			//$node->fulldate_timestamp = $key['show_start'];
+			$node->item_number = $key['item_number'];
+			$node->start_time = $start_time;
+			$node->end_time = $end_time;
+			$node->show_start = $key['show_start'];
+			$node->show_end = $key['show_end'];
+			//drupal_set_message('<pre>'.print_r($node, TRUE).'</pre>');
+		$items[] = node_view($node, 'kued_related_episodes'); // This is where we show the custom content view for program guide items
+	}
+	// Now build the list of nodes
+	if(isset($items)) {
+		return $items;
+	}
+}
+*/
+/**
+ * Implements hook_block_configure().
+ *
+ * This hook declares configuration options for blocks provided by this module.
+ */
+ /*
+function kued_related_block_configure($delta = '') {
+  // The $delta parameter tells us which block is being configured.
+  // In this example, we'll allow the administrator to customize
+  // the text of the 'configurable text string' block defined in this module.
+
+  $form = array();
+  if ($delta == 'kued_related_episode') {
+    // All we need to provide is the specific configuration options for our
+    // block. Drupal will take care of the standard block configuration options
+    // (block title, page visibility, etc.) and the save button.
+    $form['kued_related_string'] = array(
+      '#type' => 'textfield',
+      '#title' => t('Variables form fields'),
+      '#size' => 60,
+      '#description' => t('This text will appear in the KUED Related Block.'),
+      '#default_value' => variable_get('kued_related_string',  t('Some example content.')),
+    );
+  }
+  return $form;
+}
+*/
+/**
+ * Implements hook_block_save().
+ *
+ * This hook declares how the configured options for a block
+ * provided by this module are saved.
+ */
+ /*
+function kued_related_block_save($delta = '', $edit = array()) {
+  // We need to save settings from the configuration form.
+  // We need to check $delta to make sure we are saving the right block.
+  if ($delta == 'kued_related_episode') {
+    // Have Drupal save the string to the database.
+    variable_set('kued_related_string', $edit['kued_related_string']);
+  }
+  return;
+}
+*/
+
+/**
+ * Implements hook_entity_info_alter().
+ */
+function kued_related_entity_info_alter(&$entity_info) {
+  $entity_info['node']['view modes']['kued_related_episodes'] = array(
+    'label' => t('Related Episodes Display'),
+    'custom settings' => TRUE,
+  );
+  $entity_info['node']['view modes']['kued_related_slideshow'] = array(
+    'label' => t('Related Slideshow Display'),
+    'custom settings' => TRUE,
+  );
+}
+
