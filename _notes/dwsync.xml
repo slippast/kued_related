@@ -1,7 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <dwsync>
-<file name="kued_related.module" server="gateway01.uen.org//web/rc-upld/wwwkued/sites/" local="132062176683171138" remote="132062176680000000" Dst="2" />
-<file name="kued_related_airdates.tpl.php" server="gateway01.uen.org//web/rc-upld/wwwkued/sites/" local="131170615446912102" remote="131170615440000000" Dst="2" />
-<file name="kued-related-airdates--block.tpl.php" server="gateway01.uen.org//web/rc-upld/wwwkued/sites/" local="131170615440000000" remote="131170615440000000" Dst="2" />
-<file name="kued_related.install" server="gateway01.uen.org//web/rc-upld/wwwkued/sites/" local="132062176766115079" remote="132062176760000000" Dst="2" />
+<file name="kued_related.module" server="gateway01.uen.org//web/rc-upld/wwwkued/sites/" local="132162448074929808" remote="132162448070000000" Dst="2" />
+<file name="kued_related.install" server="gateway01.uen.org//web/rc-upld/wwwkued/sites/" local="132162457210000000" remote="132162457210000000" Dst="2" />
+<file name="kued_related.info" server="gateway01.uen.org//web/rc-upld/wwwkued/sites/" local="132162457350724920" remote="132162457350000000" Dst="2" />
 </dwsync>
